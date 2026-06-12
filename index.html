@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Misja Komunalnika Rycha</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--green:#176b3a;--green2:#238f52;--orange:#f28c28;--bg:#f7f5ef;--ink:#163029;--muted:#66766f;--bad:#b42318}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+header{position:sticky;top:0;z-index:10;background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;padding:16px}
+header h1{margin:0;font-size:22px}header p{margin:4px 0 0;font-size:13px;opacity:.9}
+main{max-width:850px;margin:auto;padding:14px}.card{background:#fff;border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+button{width:100%;border:0;border-radius:12px;padding:14px 16px;font-weight:700;font-size:16px;cursor:pointer}button.primary{background:var(--orange);color:#24170d}button.secondary{background:#e8f3ec;color:var(--green)}button.ghost{background:#f2f4f3;color:var(--ink)}button.answer{background:#f2f4f3;text-align:left;margin:8px 0}button.answer:hover{background:#e8eeea}
+.hidden{display:none!important}.status{padding:11px;border-radius:12px;background:#fff2dc;margin:10px 0}.status.ok{background:#e4f6e9}.status.bad{background:#fde8e6;color:var(--bad)}
+.progress{height:10px;background:#dfe8e2;border-radius:999px;overflow:hidden}.progress>div{height:100%;background:var(--orange);width:0}
+#map{height:52vh;min-height:360px;border-radius:16px}.route-item{padding:10px 0;border-bottom:1px solid #ececec}.route-item:last-child{border-bottom:none}.locked{opacity:.5}.fragment{font-size:34px;font-weight:900;text-align:center;color:var(--green);padding:14px}.word{display:inline-block;padding:11px 13px;border-radius:11px;background:#edf4ef;margin:5px;cursor:pointer;font-weight:800}#chosen{min-height:60px;border:2px dashed #bdcbc1;border-radius:12px;padding:10px;margin:12px 0;font-weight:800}
+input{width:100%;padding:13px;border:1px solid #b9c4be;border-radius:10px;font-size:16px}.modegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.note{font-size:13px;color:var(--muted);line-height:1.5}
+@media(max-width:600px){.modegrid{grid-template-columns:1fr}#map{min-height:320px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Misja Komunalnika Rycha</h1>
+  <p>Gra terenowa PGKiM • Bulwary nad Sanem</p>
+</header>
+<main>
+<section id="start" class="card">
+  <h2>Rychu ma dla Was misję!</h2>
+  <p>Na Bulwarach nad Sanem ukrył pięć stacji. Każda z nich dotyczy innego rodzaju odpadów, ale uwaga — zadanie pokaże się dopiero wtedy, gdy naprawdę dotrzecie do właściwego miejsca.</p>
+  <p>Po drodze zdobędziecie pięć elementów finałowej układanki. Dopiero na końcu okaże się, jakie hasło przygotował dla Was Komunalnik Rychu.</p>
+  <label><b>Jak nazywa się Wasza drużyna?</b></label>
+  <input id="team" placeholder="np. Ekipa Rycha, Zielona Drużyna">
+  <div style="height:12px"></div>
+  <div class="modegrid">
+    <button class="primary" onclick="startGame('gps')">RUSZAMY W TEREN</button>
+    <button class="secondary" onclick="startGame('demo')">SPRAWDŹ GRĘ TESTOWO</button>
+  </div>
+  <p class="note"><b>Tryb terenowy</b> korzysta z GPS i odblokowuje pytania dopiero po dojściu do stacji. <b>Tryb testowy</b> służy tylko do sprawdzenia całej gry bez wychodzenia na Bulwary.</p>
+</section>
+
+<section id="game" class="hidden">
+  <div class="card">
+    <div class="progress"><div id="bar"></div></div>
+    <p id="progressText"><b>0/5 stacji</b></p>
+    <div id="gpsStatus" class="status">Gra uruchomiona.</div>
+  </div>
+
+  <div class="card">
+    <h3>Mapa Bulwarów nad Sanem</h3>
+    <div id="map"></div>
+    <p class="note">Mapa pokazuje obszar Bulwarów. Aktywna stacja świeci na pomarańczowo. Pytanie uruchamia się dopiero po wejściu w promień około 22 metrów od punktu.</p>
+  </div>
+
+  <div class="card">
+    <h3>Aktualna wskazówka</h3>
+    <p id="clue"></p>
+    <button class="primary" onclick="checkPoint()">SPRAWDŹ, CZY JESTEM PRZY STACJI</button>
+    <div style="height:8px"></div>
+    <button class="ghost" onclick="showSafety()">ZASADY BEZPIECZEŃSTWA</button>
+  </div>
+
+  <div class="card">
+    <h3>Postęp</h3>
+    <div id="route"></div>
+  </div>
+</section>
+
+<section id="quiz" class="card hidden">
+  <h2 id="stationTitle"></h2>
+  <p id="questionText"></p>
+  <div id="answers"></div>
+  <div id="feedback"></div>
+</section>
+
+<section id="reward" class="card hidden">
+  <h2>Stacja zaliczona</h2>
+  <p>Zdobywasz element finałowej układanki:</p>
+  <div id="fragment" class="fragment"></div>
+  <button class="primary" onclick="nextStation()">DALEJ</button>
+</section>
+
+<section id="final" class="card hidden">
+  <h2>Finał misji</h2>
+  <p>Wybierz zdobyte słowa i ułóż z nich poprawne hasło.</p>
+  <div id="pool"></div>
+  <div id="chosen"></div>
+  <button class="secondary" onclick="resetWords()">WYCZYŚĆ</button>
+  <div style="height:8px"></div>
+  <button class="primary" onclick="checkFinal()">SPRAWDŹ HASŁO</button>
+  <div id="finalMsg"></div>
+</section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const STATIONS=[
+{
+name:"Metale i tworzywa sztuczne",
+clue:"Szukaj punktu w pobliżu wejścia na Bulwary od strony głównej alejki.",
+lat:50.020528,lng:22.704028,radius:22,fragment:"LICZĄ",
+questions:[
+{q:"Który zestaw w całości może trafić do żółtego pojemnika?",a:["Puszka po konserwie, karton po mleku, opróżniona plastikowa butelka po oleju spożywczym","Puszka po farbie, plastikowa zabawka, szczoteczka do zębów","Styropian budowlany, doniczka, długopis","Blister po lekach, rękawiczki, zabawka"],c:0,e:"Do żółtego pojemnika trafiają opakowania z metalu i tworzyw sztucznych oraz opakowania wielomateriałowe."},
+{q:"Którego odpadu nie wrzucamy do żółtego pojemnika, mimo że jest wykonany z tworzywa sztucznego?",a:["Opróżnionej butelki po napoju","Opakowania po jogurcie","Zużytej szczoteczki do zębów","Czystej folii opakowaniowej"],c:2,e:"Żółty pojemnik jest przeznaczony głównie na odpady opakowaniowe, a nie na wszystkie przedmioty wykonane z plastiku."}
+]},
+{
+name:"Papier",
+clue:"Szukaj miejsca, gdzie najmłodsi wspinają się, biegają i zjeżdżają.",
+lat:50.019694,lng:22.704056,radius:22,fragment:"SIĘ",
+questions:[
+{q:"Który odpad najbardziej zanieczyszcza papier przeznaczony do recyklingu?",a:["Czyste pudełko po butach","Gazeta z kolorowym nadrukiem","Zatłuszczony karton po pizzy","Zeszyt zapisany długopisem"],c:2,e:"Tłuszcz i resztki żywności utrudniają recykling papieru."},
+{q:"Który zestaw nie powinien trafić do niebieskiego pojemnika?",a:["Katalog, torba papierowa, karton","Paragon, ręcznik papierowy, papier powlekany folią","Koperta, zeszyt, gazeta","Papier pakowy, tektura, ulotka"],c:1,e:"Paragony termiczne, ręczniki papierowe i papier powlekany nie trafiają do niebieskiego pojemnika."},
+{q:"Każdy produkt wykonany głównie z papieru można wrzucić do niebieskiego pojemnika.",a:["Prawda","Fałsz"],c:1,e:"Nie każdy papier nadaje się do tej frakcji."}
+]},
+{
+name:"Szkło",
+clue:"Szukaj miejsca, gdzie królują deski, rolki i szybkie zakręty.",
+lat:50.018444,lng:22.704472,radius:22,fragment:"TWOJE",
+questions:[
+{q:"Dlaczego rozbitej szklanki nie należy wrzucać do zielonego pojemnika?",a:["Ma inny skład i temperaturę topnienia niż szkło opakowaniowe","Jest zbyt mała","Jest odpadem niebezpiecznym","Może stłuc butelki"],c:0,e:"Szkło stołowe ma inne właściwości niż szkło opakowaniowe."},
+{q:"Który odpad może trafić do zielonego pojemnika?",a:["Opróżniony słoik","Żarówka energooszczędna","Pokrywka żaroodporna","Lustro"],c:0,e:"Zielony pojemnik jest przeznaczony głównie na szklane butelki i słoiki."},
+{q:"Które stwierdzenie jest prawidłowe?",a:["Każde szkło trafia do zielonego","Słoiki trzeba myć detergentem","Ceramika może zakłócić recykling szkła","Zakrętki zawsze zostają na słoiku"],c:2,e:"Ceramika i szkło żaroodporne nie powinny trafiać do szkła opakowaniowego."}
+]},
+{
+name:"Bioodpady",
+clue:"Szukaj miejsca, gdzie piłka może trafić nad siatkę albo do bramki.",
+lat:50.017361,lng:22.704472,radius:22,fragment:"MAŁE",
+questions:[
+{q:"Który zestaw w całości może trafić do brązowego pojemnika?",a:["Fusy, obierki, zwiędłe kwiaty","Kości, mięso, popiół","Ziemia, kamienie, skorupki jaj","Drewno lakierowane, płyta meblowa, doniczka"],c:0,e:"Do bioodpadów trafiają m.in. obierki, fusy i odpady roślinne."},
+{q:"Dlaczego bioodpadów nie powinno się wrzucać w zwykłych workach foliowych?",a:["Folia zwiększa wilgotność","Folia zanieczyszcza materiał i nie rozkłada się biologicznie","Worki są zbyt lekkie","Bioodpady mogą rozerwać worek"],c:1,e:"Folia utrudnia biologiczne przetwarzanie odpadów."},
+{q:"Co może powstawać podczas beztlenowego rozkładu bioodpadów?",a:["Tlen","Metan","Szkło","Papier"],c:1,e:"W warunkach beztlenowych może powstawać metan."}
+]},
+{
+name:"PSZOK i odpady problemowe",
+clue:"Szukaj ostatniego punktu bliżej Sanu, ale zachowaj bezpieczną odległość od wody.",
+lat:50.016750,lng:22.704806,radius:22,fragment:"DZIAŁANIA",
+questions:[
+{q:"Który z tych odpadów nie powinien trafić do zwykłego pojemnika, lecz do specjalnego punktu zbiórki?",a:["Przeterminowane leki","Czysta gazeta","Słoik po dżemie","Karton po butach"],c:0,e:"Przeterminowane leki należy oddać do wyznaczonego punktu zbiórki, a nie do zwykłego pojemnika."},
+{q:"Która sytuacja oznacza nieprawidłowe korzystanie z PSZOK?",a:["Mieszkaniec oddaje elektroodpady","Firma budowlana przywozi odpady z odpłatnego remontu","Mieszkaniec oddaje meble","Mieszkaniec oddaje baterie"],c:1,e:"PSZOK nie służy do przekazywania odpadów z działalności gospodarczej."},
+{q:"Który zestaw zawiera wyłącznie odpady wymagające specjalnego przekazania?",a:["Bateria, telewizor, przeterminowany lek","Słoik, gazeta, puszka","Obierki, karton po mleku, butelka PET","Ręcznik papierowy, paragon, ceramika"],c:0,e:"Baterie, elektroodpady i przeterminowane leki nie powinny trafiać do zwykłych pojemników."}
+]}
+];
+
+let state={mode:"demo",team:"",station:0,q:0,score:0,attempts:0,completed:[],pos:null};
+let selected=[];
+let map,userMarker,stationLayers=[];
+const $=id=>document.getElementById(id);
+
+function startGame(mode){
+ state.mode=mode;
+ state.team=$("team").value.trim()||"Drużyna Rycha";
+ $("start").classList.add("hidden");
+ $("game").classList.remove("hidden");
+ initMap();
+ render();
+ if(mode==="gps") startGPS();
+ else {
+   $("gpsStatus").className="status ok";
+   $("gpsStatus").textContent="Tryb testowy: możesz odblokować każdą stację bez GPS.";
+ }
+}
+
+function initMap(){
+ map=L.map('map').setView([50.0186,22.7044], 17);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+   maxZoom: 20,
+   attribution: '&copy; OpenStreetMap'
+ }).addTo(map);
+ stationLayers=STATIONS.map((s,i)=>{
+   const circle=L.circle([s.lat,s.lng],{radius:s.radius,color:i===0?'#f28c28':'#176b3a',fillOpacity:0.14,weight:2}).addTo(map);
+   circle.bindPopup('Stacja '+(i+1)+': '+s.name);
+   return circle;
+ });
+ L.polyline(STATIONS.map(s=>[s.lat,s.lng]),{color:'#f28c28',weight:3,dashArray:'6 6'}).addTo(map);
+}
+
+function startGPS(){
+ $("gpsStatus").textContent="Pobieranie lokalizacji…";
+ if(!navigator.geolocation){
+   $("gpsStatus").className="status bad";
+   $("gpsStatus").textContent="Ta przeglądarka nie obsługuje GPS. Użyj trybu testowego.";
+   return;
+ }
+ navigator.geolocation.watchPosition(
+   p=>{
+     state.pos={lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy};
+     $("gpsStatus").className="status ok";
+     $("gpsStatus").textContent=`GPS aktywny. Dokładność około ${Math.round(p.coords.accuracy)} m.`;
+     if(!userMarker){
+       userMarker=L.marker([state.pos.lat,state.pos.lng]).addTo(map).bindPopup('Twoja pozycja');
+     }else userMarker.setLatLng([state.pos.lat,state.pos.lng]);
+   },
+   ()=>{
+     $("gpsStatus").className="status bad";
+     $("gpsStatus").textContent="Brak dostępu do GPS. Zezwól na lokalizację albo użyj trybu testowego.";
+   },
+   {enableHighAccuracy:true,maximumAge:2000,timeout:15000}
+ );
+}
+
+function render(){
+ $("bar").style.width=(state.completed.length/5*100)+"%";
+ $("progressText").innerHTML=`<b>${state.completed.length}/5 stacji</b> • ${state.score} pkt`;
+ $("clue").textContent=STATIONS[state.station].clue;
+ $("route").innerHTML=STATIONS.map((s,i)=>`<div class="route-item ${i>state.station?'locked':''}">${i<state.station?'✅':i===state.station?'🟠':'🔒'} <b>Stacja ${i+1}:</b> ${s.name}</div>`).join('');
+ stationLayers.forEach((layer,i)=>layer.setStyle({color:i===state.station?'#f28c28':'#176b3a'}));
+ if(map) map.setView([STATIONS[state.station].lat,STATIONS[state.station].lng],18);
+}
+
+function distance(a,b,c,d){
+ const R=6371000,p=Math.PI/180; const x=(c-a)*p,y=(d-b)*p;
+ const A=Math.sin(x/2)**2+Math.cos(a*p)*Math.cos(c*p)*Math.sin(y/2)**2;
+ return 2*R*Math.asin(Math.sqrt(A));
+}
+
+function checkPoint(){
+ if(state.mode==="demo"){openQuiz();return}
+ if(!state.pos){alert('Lokalizacja nie jest jeszcze dostępna.');return}
+ const s=STATIONS[state.station];
+ const d=distance(state.pos.lat,state.pos.lng,s.lat,s.lng);
+ const tolerance=s.radius+Math.min(state.pos.acc||0,20);
+ if(d<=tolerance) openQuiz();
+ else alert('Nie jesteś jeszcze przy stacji. Brakuje około '+Math.max(0,Math.round(d-s.radius))+' m.');
+}
+
+function openQuiz(){
+ $("game").classList.add("hidden");
+ $("quiz").classList.remove("hidden");
+ state.q=0; state.attempts=0; showQuestion();
+}
+
+function showQuestion(){
+ const s=STATIONS[state.station], q=s.questions[state.q];
+ $("stationTitle").textContent=`Stacja ${state.station+1}: ${s.name}`;
+ $("questionText").textContent=q.q;
+ $("feedback").innerHTML='';
+ $("answers").innerHTML=q.a.map((x,i)=>`<button class="answer" onclick="answer(${i})">${String.fromCharCode(65+i)}. ${x}</button>`).join('');
+}
+
+function answer(i){
+ const s=STATIONS[state.station],q=s.questions[state.q];
+ state.attempts++;
+ if(i===q.c){
+   const base=Math.round(100/s.questions.length);
+   state.score += state.attempts===1?base:state.attempts===2?Math.round(base*0.7):Math.round(base*0.4);
+   $("feedback").innerHTML=`<div class="status ok"><b>Dobrze.</b><br>${q.e}</div>`;
+   setTimeout(()=>{
+     state.q++; state.attempts=0;
+     if(state.q<s.questions.length) showQuestion(); else finishStation();
+   },700);
+ }else $("feedback").innerHTML='<div class="status bad"><b>Nie tym razem.</b> Spróbuj ponownie.</div>';
+}
+
+function finishStation(){
+ const s=STATIONS[state.station];
+ state.completed.push(state.station);
+ $("quiz").classList.add("hidden");
+ $("reward").classList.remove("hidden");
+ $("fragment").textContent=s.fragment;
+}
+
+function nextStation(){
+ $("reward").classList.add("hidden");
+ if(state.completed.length===5){openFinal();return}
+ state.station++;
+ $("game").classList.remove("hidden");
+ render();
+}
+
+function openFinal(){
+ $("final").classList.remove("hidden");
+ const words=["DZIAŁANIA","TWOJE","LICZĄ","MAŁE","SIĘ","WIELKIE","NASZE","ODPADY"];
+ words.sort(()=>Math.random()-.5);
+ $("pool").innerHTML=words.map(w=>`<span class="word" onclick="pickWord(this,'${w}')">${w}</span>`).join('');
+}
+
+function pickWord(el,w){ selected.push(w); el.style.display='none'; $("chosen").textContent=selected.join(' '); }
+function resetWords(){ selected=[]; document.querySelectorAll('.word').forEach(x=>x.style.display='inline-block'); $("chosen").textContent=''; $("finalMsg").innerHTML=''; }
+function checkFinal(){
+ if(selected.join(' ')==='LICZĄ SIĘ TWOJE MAŁE DZIAŁANIA'){
+   $("finalMsg").innerHTML=`<div class="status ok"><h2>Misja Komunalnika Rycha zakończona!</h2><p><b>${state.team}</b> zdobyła ${state.score} punktów.</p><p>Dotarliście do wszystkich pięciu stacji, poradziliście sobie z odpadami i ułożyliście finałowe hasło.</p><p><b>Rychu jest pod wrażeniem!</b> Pamiętajcie: nie trzeba robić wszystkiego naraz. Każda dobrze posegregowana rzecz, każda bateria oddana do odpowiedniego punktu i każdy przedmiot wykorzystany ponownie naprawdę ma znaczenie.</p><h3>Liczą się Twoje małe działania!</h3></div>`;
+ }else $("finalMsg").innerHTML='<div class="status bad">Hasło jest niepoprawne. Wyczyść układ i spróbuj ponownie.</div>';
+}
+function showSafety(){ alert('Poruszaj się wyłącznie po bezpiecznych alejkach. Nie wchodź bezpośrednio nad brzeg Sanu. Dzieci powinny grać pod opieką osoby dorosłej.'); }
+</script>
+</body>
+</html>
