@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Podpis – Andrzej Makar</title>
+<style>
+  :root {
+    --orange: #F07F1B;   /* pomarańcz PGKiM (odczyt z logo) */
+    --lime:   #B0CB21;   /* zieleń strzałek recyklingu z logo */
+    --ink:    #1E1E1E;   /* grafit do tekstu */
+    --white:  #FFFFFF;
+  }
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body { position: relative; overflow: hidden; font-family: 'Inter', sans-serif; }
+  .lt { position: absolute; display: flex; }
+  .lt.shadow { filter: drop-shadow(0 8px 22px rgba(0,0,0,.28)); }
+  .bar { flex: none; background: var(--lime); transform-origin: 50% 100%; }
+  .rows { display: flex; flex-direction: column; align-items: flex-start; }
+  .row { overflow: hidden; display: flex; align-items: center; box-sizing: border-box; }
+  .row span { display: block; white-space: nowrap; will-change: transform, opacity; }
+  .name  { background: var(--white); }
+  .name span  { color: var(--ink); font-weight: 800; letter-spacing: -0.01em; }
+  .title { background: var(--orange); }
+  .title span { color: var(--ink); font-weight: 600; letter-spacing: 0; line-height: 1.22; }
+
+  /* wariant B: nazwisko na pomarańczu, funkcja na bieli */
+  .vB .name { background: var(--orange); }
+  .vB .name span { color: var(--white); }
+  .vB .title { background: var(--white); }
+</style>
+</head>
+<body>
+<div class="lt" id="lt">
+  <div class="bar" id="bar"></div>
+  <div class="rows">
+    <div class="row name" id="name"><span id="nameT">Andrzej Makar</span></div>
+    <div class="row title" id="title"><span id="titleT"></span></div>
+  </div>
+</div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const FMT = q.get('f') || '169';
+  const SHADOW = q.get('shadow') !== '0';
+  const VARIANT = q.get('v') || 'B';
+
+  // Wymiary dla obu formatów (px w rozdzielczości docelowej)
+  const L = {
+    '169': { W: 1920, H: 1080, left: 150, bottom: 120, bar: 16,
+             nameH: 112, nameFs: 70, titleFs: 36, titleH: 62, padX: 38,
+             title: 'Prezes PGKiM w Jarosławiu Sp.&nbsp;z&nbsp;o.o. i&nbsp;JPK Sp.&nbsp;z&nbsp;o.o.' },
+    '916': { W: 1080, H: 1920, left: 64, bottom: 500, bar: 16,
+             nameH: 120, nameFs: 76, titleFs: 37, titleH: 112, padX: 36,
+             title: 'Prezes PGKiM w Jarosławiu Sp.&nbsp;z&nbsp;o.o.<br>i&nbsp;JPK Sp.&nbsp;z&nbsp;o.o.' },
+  }[FMT];
+
+  document.body.style.width = L.W + 'px';
+  document.body.style.height = L.H + 'px';
+  const lt = document.getElementById('lt');
+  if (SHADOW) lt.classList.add('shadow');
+  if (VARIANT === 'B') lt.classList.add('vB');
+  lt.style.left = L.left + 'px';
+  lt.style.bottom = L.bottom + 'px';
+  const bar = document.getElementById('bar');
+  bar.style.width = L.bar + 'px';
+  const name = document.getElementById('name'), nameT = document.getElementById('nameT');
+  const title = document.getElementById('title'), titleT = document.getElementById('titleT');
+  name.style.height = L.nameH + 'px';
+  name.style.padding = `0 ${L.padX + 4}px 0 ${L.padX}px`;
+  nameT.style.fontSize = L.nameFs + 'px';
+  title.style.minHeight = L.titleH + 'px';
+  title.style.padding = `${FMT === '916' ? 12 : 0}px ${L.padX + 4}px ${FMT === '916' ? 12 : 0}px ${L.padX}px`;
+  titleT.style.fontSize = L.titleFs + 'px';
+  titleT.innerHTML = L.title;
+
+  // ---- animacja ----
+  const DUR = 7.0;
+  const clamp = x => Math.max(0, Math.min(1, x));
+  const seg = (t, a, b) => clamp((t - a) / (b - a));
+  const outExpo = x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x);
+  const outCubic = x => 1 - Math.pow(1 - x, 3);
+  const inCubic = x => x * x * x;
+
+  function seek(t) {
+    // wejście
+    const barIn   = outCubic(seg(t, 0.00, 0.45));
+    const nameIn  = outExpo(seg(t, 0.15, 0.85));
+    const nameTx  = outExpo(seg(t, 0.32, 1.05));
+    const titleIn = outExpo(seg(t, 0.32, 1.02));
+    const titleTx = outExpo(seg(t, 0.50, 1.25));
+    // zejście
+    const titleTo = inCubic(seg(t, 5.95, 6.30));
+    const nameTo  = inCubic(seg(t, 6.02, 6.37));
+    const titleOut = inCubic(seg(t, 6.12, 6.55));
+    const nameOut  = inCubic(seg(t, 6.20, 6.65));
+    const barOut   = inCubic(seg(t, 6.55, 6.92));
+
+    const bScale = barIn * (1 - barOut);
+    bar.style.transform = `scaleY(${bScale})`;
+    bar.style.transformOrigin = barOut > 0 ? '50% 0%' : '50% 100%';
+
+    const np = nameIn * (1 - nameOut);
+    const tp = titleIn * (1 - titleOut);
+    name.style.clipPath  = `inset(0 ${(1 - np) * 100}% 0 0)`;
+    title.style.clipPath = `inset(0 ${(1 - tp) * 100}% 0 0)`;
+    name.style.visibility  = np <= 0.0005 ? 'hidden' : 'visible';
+    title.style.visibility = tp <= 0.0005 ? 'hidden' : 'visible';
+
+    nameT.style.transform  = `translateX(${(1 - nameTx) * -60 - nameTo * 24}px)`;
+    nameT.style.opacity    = nameTx * (1 - nameTo);
+    titleT.style.transform = `translateX(${(1 - titleTx) * -50 - titleTo * 20}px)`;
+    titleT.style.opacity   = titleTx * (1 - titleTo);
+  }
+  window.seek = seek;
+  window.DUR = DUR;
+  window.FMT = L;
+  seek(q.has('t') ? parseFloat(q.get('t')) : 3);
+</script>
+</body>
+</html>
