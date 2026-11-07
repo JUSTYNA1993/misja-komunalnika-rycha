@@ -1,5 +1,6 @@
 // Renderuje klatki animacji podpisu do PNG z przezroczystością.
 // Użycie: node render.js <169|916> <shadow 1|0> <katalog_wyjściowy> [fps]
+// shadow=0 – wersja bez cienia (do zielonego tła / chroma key)
 const { chromium } = require('playwright');
 const path = require('path'); const fs = require('fs');
 const [fmt, shadow, out, fpsArg] = process.argv.slice(2);
@@ -10,7 +11,7 @@ const fps = parseInt(fpsArg || '30', 10);
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: W, height: H } });
   await p.goto('file://' + path.resolve(__dirname, 'podpis.html') + `?f=${fmt}&shadow=${shadow}&t=0`);
-  await p.evaluate(() => document.fonts.ready);
+  await p.evaluate(async () => { await document.fonts.ready; window.layout(); });
   const dur = await p.evaluate(() => window.DUR);
   const n = Math.round(dur * fps);
   for (let i = 0; i < n; i++) {

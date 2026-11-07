@@ -9,7 +9,7 @@ Czas: 7 s, 30 kl./s. Wejście ok. 1,2 s, napis stoi do ok. 6 s, zejście do 7 s.
 |---|---|
 | `*_alfa.mov` | ProRes 4444 z przezroczystością. Premiere Pro, DaVinci Resolve, Final Cut. Kładziesz na ścieżce nad filmem. |
 | `*_alfa.webm` | VP9 z przezroczystością. Lekki plik do programów i przeglądarek, które obsługują WebM z kanałem alfa. |
-| `*_niebieskie-tlo.mp4` | Podpis na niebieskim tle do kluczowania (chroma key), np. w CapCut na telefonie. Bez cienia, żeby kluczowanie było czyste. |
+| `*_zielone-tlo.mp4` | Podpis na zielonym tle #00FF00 do kluczowania (chroma key), np. w CapCut. Bez cienia, krawędzie belek wyrównane do pełnych pikseli. Siłę klucza ustaw tylko tyle, żeby zniknęło tło: zielony pasek z logo jest bliski kolorem tłu i przy zbyt mocnym kluczu zacznie znikać. |
 | `*_statyczny.png` | Nieruchomy podpis z przezroczystością, np. do Canvy (animację wejścia można dodać w Canvie). |
 | `PODGLAD_*.mp4` | Tylko podgląd na przykładowym tle. Nie do montażu. |
 
